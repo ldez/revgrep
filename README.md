@@ -5,7 +5,7 @@
 # Install
 
 ```bash
-go get -u github.com/golangci/revgrep/...
+go install github.com/golangci/revgrep/cmd/revgrep@latest
 ```
 
 # Usage
