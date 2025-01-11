@@ -2,6 +2,7 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"fmt"
 	"os"
@@ -37,7 +38,7 @@ func main() {
 		checker.Debug = os.Stdout
 	}
 
-	issues, err := checker.Check(os.Stdin, os.Stderr)
+	issues, err := checker.Check(context.Background(), os.Stdin, os.Stderr)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

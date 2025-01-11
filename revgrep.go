@@ -4,6 +4,7 @@ package revgrep
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -86,9 +87,11 @@ func (i simpleInputIssue) Line() int {
 }
 
 // Prepare extracts a patch and changed lines.
-func (c *Checker) Prepare() error {
-	returnErr := c.preparePatch()
+func (c *Checker) Prepare(ctx context.Context) error {
+	returnErr := c.preparePatch(ctx)
+
 	c.changes = c.linesChanged()
+
 	return returnErr
 }
 
@@ -119,7 +122,9 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 	if changed || fchanges == nil {
 		// either file changed or it's a new file
 		hunkPos := fpos.lineNo
-		if changed { // existing file changed
+
+		// existing file changed
+		if changed {
 			hunkPos = fpos.hunkPos
 		}
 
@@ -137,8 +142,8 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 // all issues are written to writer and an error is returned.
 //
 // File paths in reader must be relative to current working directory or absolute.
-func (c *Checker) Check(reader io.Reader, writer io.Writer) (issues []Issue, err error) {
-	returnErr := c.Prepare()
+func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer) (issues []Issue, err error) {
+	returnErr := c.Prepare(ctx)
 	writeAll := returnErr != nil
 
 	// file.go:lineNo:colNo:message
@@ -240,11 +245,11 @@ func (c *Checker) debugf(format string, s ...interface{}) {
 	}
 }
 
-func (c *Checker) preparePatch() error {
+func (c *Checker) preparePatch(ctx context.Context) error {
 	// Check if patch is supplied, if not, retrieve from VCS
 	if c.Patch == nil {
 		var err error
-		c.Patch, c.NewFiles, err = GitPatch(c.RevisionFrom, c.RevisionTo)
+		c.Patch, c.NewFiles, err = GitPatch(ctx, c.RevisionFrom, c.RevisionTo)
 		if err != nil {
 			return fmt.Errorf("could not read git repo: %w", err)
 		}
@@ -287,15 +292,19 @@ func (c *Checker) linesChanged() map[string][]pos {
 			// it's likey part of a file and not relevant to the patch.
 			continue
 		}
+
 		if err != nil {
 			scanErr = err
 			break
 		}
+
 		line := strings.TrimRight(string(lineB), "\n")
 
 		c.debugf(line)
+
 		s.lineNo++
 		s.hunkPos++
+
 		switch {
 		case strings.HasPrefix(line, "+++ ") && len(line) > 4:
 			if s.changes != nil {
@@ -304,6 +313,7 @@ func (c *Checker) linesChanged() map[string][]pos {
 			}
 			// 6 removes "+++ b/"
 			s = state{file: line[6:], hunkPos: -1, changes: []pos{}}
+
 		case strings.HasPrefix(line, "@@ "):
 			//      @@ -1 +2,4 @@
 			// chdr ^^^^^^^^^^^^^
@@ -317,8 +327,10 @@ func (c *Checker) linesChanged() map[string][]pos {
 				panic(err)
 			}
 			s.lineNo = int(cstart) - 1 // -1 as cstart is the next line number
+
 		case strings.HasPrefix(line, "-"):
 			s.lineNo--
+
 		case strings.HasPrefix(line, "+"):
 			s.changes = append(s.changes, pos{lineNo: s.lineNo, hunkPos: s.hunkPos})
 		}
@@ -342,15 +354,15 @@ func (c *Checker) linesChanged() map[string][]pos {
 // If revisionFrom is set but revisionTo is not,
 // untracked files will be included, to exclude untracked files set revisionTo to HEAD~.
 // It's incorrect to specify revisionTo without a revisionFrom.
-func GitPatch(revisionFrom, revisionTo string) (io.Reader, []string, error) {
+func GitPatch(ctx context.Context, revisionFrom, revisionTo string) (io.Reader, []string, error) {
 	// check if git repo exists
-	if err := exec.Command("git", "status", "--porcelain").Run(); err != nil {
+	if err := exec.CommandContext(ctx, "git", "status", "--porcelain").Run(); err != nil {
 		// don't return an error, we assume the error is not repo exists
 		return nil, nil, nil
 	}
 
 	// make a patch for untracked files
-	ls, err := exec.Command("git", "ls-files", "--others", "--exclude-standard").CombinedOutput()
+	ls, err := exec.CommandContext(ctx, "git", "ls-files", "--others", "--exclude-standard").CombinedOutput()
 	if err != nil {
 		return nil, nil, fmt.Errorf("error executing git ls-files: %w", err)
 	}
@@ -376,7 +388,7 @@ func GitPatch(revisionFrom, revisionTo string) (io.Reader, []string, error) {
 
 		args = append(args, "--")
 
-		patch, errDiff := gitDiff(args...)
+		patch, errDiff := gitDiff(ctx, args...)
 		if errDiff != nil {
 			return nil, nil, errDiff
 		}
@@ -389,7 +401,7 @@ func GitPatch(revisionFrom, revisionTo string) (io.Reader, []string, error) {
 	}
 
 	// make a patch for unstaged changes
-	patch, err := gitDiff("--")
+	patch, err := gitDiff(ctx, "--")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -403,7 +415,7 @@ func GitPatch(revisionFrom, revisionTo string) (io.Reader, []string, error) {
 	}
 
 	// check for changes in recent commit
-	patch, err = gitDiff("HEAD~", "--")
+	patch, err = gitDiff(ctx, "HEAD~", "--")
 	if err != nil {
 		return nil, nil, err
 	}
@@ -411,10 +423,10 @@ func GitPatch(revisionFrom, revisionTo string) (io.Reader, []string, error) {
 	return patch, nil, nil
 }
 
-func gitDiff(extraArgs ...string) (*bytes.Buffer, error) {
-	cmd := exec.Command("git", "diff", "--color=never", "--no-ext-diff")
+func gitDiff(ctx context.Context, extraArgs ...string) (*bytes.Buffer, error) {
+	cmd := exec.CommandContext(ctx, "git", "diff", "--color=never", "--no-ext-diff")
 
-	if isSupportedByGit(2, 41, 0) {
+	if isSupportedByGit(ctx, 2, 41, 0) {
 		cmd.Args = append(cmd.Args, "--default-prefix")
 	}
 
@@ -443,8 +455,8 @@ func readAsError(buff io.Reader) error {
 	return errors.New(string(output))
 }
 
-func isSupportedByGit(major, minor, patch int) bool {
-	output, err := exec.Command("git", "version").CombinedOutput()
+func isSupportedByGit(ctx context.Context, major, minor, patch int) bool {
+	output, err := exec.CommandContext(ctx, "git", "version").CombinedOutput()
 	if err != nil {
 		return false
 	}

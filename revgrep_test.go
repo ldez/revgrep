@@ -3,6 +3,7 @@ package revgrep
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"io"
 	"os"
 	"os/exec"
@@ -114,7 +115,7 @@ func TestCheckerRegexp(t *testing.T) {
 			Regexp: test.regexp,
 		}
 
-		issues, err := checker.Check(bytes.NewReader([]byte(test.line)), io.Discard)
+		issues, err := checker.Check(context.Background(), bytes.NewReader([]byte(test.line)), io.Discard)
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 		}
@@ -163,7 +164,7 @@ func TestWholeFiles(t *testing.T) {
 				WholeFiles: true,
 			}
 
-			issues, err := checker.Check(bytes.NewReader([]byte(test.line)), io.Discard)
+			issues, err := checker.Check(context.Background(), bytes.NewReader([]byte(test.line)), io.Discard)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
@@ -216,7 +217,7 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 				RevisionFrom: test.revFrom,
 				RevisionTo:   test.revTo,
 			}
-			_, err := c.Check(bytes.NewBuffer(goVetOutput), &out)
+			_, err := c.Check(context.Background(), bytes.NewBuffer(goVetOutput), &out)
 			if err != nil {
 				t.Errorf("%s: unexpected error: %v", stage, err)
 			}
@@ -268,7 +269,7 @@ func TestGitPatchNonGitDir(t *testing.T) {
 		t.Fatalf("could not chdir: %v", err)
 	}
 
-	patch, newfiles, err := GitPatch("", "")
+	patch, newfiles, err := GitPatch(context.Background(), "", "")
 	if err != nil {
 		t.Errorf("error expected nil, got: %v", err)
 	}
