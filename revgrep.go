@@ -39,13 +39,13 @@ type Checker struct {
 	// If not set, current working directory is used.
 	AbsPath string
 
-	// Calculated changes for next calls to IsNewIssue
+	// Calculated changes for next calls to [Checker.IsNewIssue]/[Checker.IsNew].
 	changes map[string][]pos
 }
 
 // Prepare extracts a patch and changed lines.
 //
-// WARNING: it should only be used before an explicit call to [Checker.IsNewIssue].
+// WARNING: it should only be used before an explicit call to [Checker.IsNewIssue]/[Checker.IsNew].
 //
 // WARNING: only [Checker.Patch], [Checker.RevisionFrom], [Checker.RevisionTo], [Checker.WholeFiles] options are used,
 // the other options ([Checker.Regexp], [Checker.AbsPath]) are only used by [Checker.Check].
@@ -57,18 +57,18 @@ func (c *Checker) Prepare(ctx context.Context) error {
 	return err
 }
 
-// IsNewIssue checks whether issue found by linter is new: it was found in changed lines.
+// IsNew checks whether issue found by linter is new: it was found in changed lines.
 //
 // WARNING: it requires to call [Checker.Prepare] before call this method to load the changes from patch.
-func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
-	changes, ok := c.changes[filepath.ToSlash(i.FilePath())]
+func (c *Checker) IsNew(filePath string, line int) (hunkPos int, isNew bool) {
+	changes, ok := c.changes[filepath.ToSlash(filePath)]
 	if !ok {
 		// file wasn't changed
 		return 0, false
 	}
 
 	if c.WholeFiles {
-		return i.Line(), true
+		return line, true
 	}
 
 	var (
@@ -78,7 +78,7 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 
 	// found file, see if lines matched
 	for _, pos := range changes {
-		if pos.lineNo == i.Line() {
+		if pos.lineNo == line {
 			fpos = pos
 			changed = true
 
@@ -99,6 +99,13 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 	}
 
 	return 0, false
+}
+
+// IsNewIssue checks whether issue found by linter is new: it was found in changed lines.
+//
+// WARNING: it requires to call [Checker.Prepare] before call this method to load the changes from patch.
+func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
+	return c.IsNew(i.FilePath(), i.Line())
 }
 
 // Check scans reader and writes any lines to writer that have been added in [Checker.Patch].
