@@ -44,8 +44,9 @@ type Checker struct {
 }
 
 // Prepare extracts a patch and changed lines.
+// It should only be used with [Checker.IsNewIssue].
 func (c *Checker) Prepare(ctx context.Context) error {
-	err := c.preparePatch(ctx)
+	err := c.loadPatch(ctx)
 
 	c.changes = c.linesChanged()
 
@@ -53,9 +54,11 @@ func (c *Checker) Prepare(ctx context.Context) error {
 }
 
 // IsNewIssue checks whether issue found by linter is new: it was found in changed lines.
+// It requires to call [Checker.Prepare] before call this method to load the changes from patch.
 func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
-	fchanges, ok := c.changes[filepath.ToSlash(i.FilePath())]
-	if !ok { // file wasn't changed
+	changes, ok := c.changes[filepath.ToSlash(i.FilePath())]
+	if !ok {
+		// file wasn't changed
 		return 0, false
 	}
 
@@ -67,16 +70,18 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 		fpos    pos
 		changed bool
 	)
+
 	// found file, see if lines matched
-	for _, pos := range fchanges {
+	for _, pos := range changes {
 		if pos.lineNo == i.Line() {
 			fpos = pos
 			changed = true
+
 			break
 		}
 	}
 
-	if changed || fchanges == nil {
+	if changed || changes == nil {
 		// either file changed or it's a new file
 		hunkPos := fpos.lineNo
 
@@ -91,7 +96,7 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 	return 0, false
 }
 
-// Check scans reader and writes any lines to writer that have been added in Checker.Patch.
+// Check scans reader and writes any lines to writer that have been added in [Checker.Patch].
 //
 // Returns the issues written to writer when no error occurs.
 //
@@ -100,8 +105,9 @@ func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 //
 // File paths in reader must be relative to current working directory or absolute.
 func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer) (issues []Issue, err error) {
-	returnErr := c.Prepare(ctx)
-	writeAll := returnErr != nil
+	errPrepare := c.Prepare(ctx)
+
+	writeAll := errPrepare != nil
 
 	// file.go:lineNo:colNo:message
 	// colNo is optional, strip spaces before message
@@ -121,7 +127,7 @@ func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer)
 	if absPath == "" {
 		absPath, err = os.Getwd()
 		if err != nil {
-			returnErr = fmt.Errorf("could not get current working directory: %w", err)
+			errPrepare = fmt.Errorf("could not get current working directory: %w", err)
 		}
 	}
 
@@ -189,10 +195,10 @@ func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer)
 	}
 
 	if err := scanner.Err(); err != nil {
-		returnErr = fmt.Errorf("error reading standard input: %w", err)
+		errPrepare = fmt.Errorf("error reading standard input: %w", err)
 	}
 
-	return issues, returnErr
+	return issues, errPrepare
 }
 
 func (c *Checker) debugf(format string, s ...any) {
@@ -204,8 +210,8 @@ func (c *Checker) debugf(format string, s ...any) {
 	_, _ = fmt.Fprintf(c.Debug, format+"\n", s...)
 }
 
-// preparePatch checks if patch is supplied, if not, retrieve from VCS.
-func (c *Checker) preparePatch(ctx context.Context) error {
+// loadPatch checks if patch is supplied, if not, retrieve from VCS.
+func (c *Checker) loadPatch(ctx context.Context) error {
 	if c.Patch != nil {
 		return nil
 	}
@@ -311,6 +317,8 @@ func (c *Checker) linesChanged() map[string][]pos {
 }
 
 type pos struct {
-	lineNo  int // line number
-	hunkPos int // position relative to first @@ in file
+	// Line number.
+	lineNo int
+	// Position relative to first @@ in file.
+	hunkPos int
 }
