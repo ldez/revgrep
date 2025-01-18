@@ -15,7 +15,7 @@ import (
 	"testing"
 )
 
-func setup(t *testing.T, stage, subdir string) (string, []byte) {
+func setup(t *testing.T, stage, subdir string) []byte {
 	t.Helper()
 
 	wd, err := os.Getwd()
@@ -65,20 +65,18 @@ func setup(t *testing.T, stage, subdir string) (string, []byte) {
 
 	t.Logf("%s: go vet clean: %s", stage, string(goVetOutput))
 
-	return wd, goVetOutput
+	t.Cleanup(func() {
+		err = os.Chdir(wd)
+		if err != nil {
+			t.Fatalf("could not chdir: %v", err)
+		}
+	})
+
+	return goVetOutput
 }
 
-func teardown(t *testing.T, wd string) {
-	t.Helper()
-
-	err := os.Chdir(wd)
-	if err != nil {
-		t.Fatalf("could not chdir: %v", err)
-	}
-}
-
-// TestCheckerRegexp tests line matching and extraction of issue.
-func TestCheckerRegexp(t *testing.T) {
+// Tests line matching and extraction of issue.
+func TestChecker_Check_Regexp(t *testing.T) {
 	tests := []struct {
 		regexp string
 		line   string
@@ -127,9 +125,9 @@ func TestCheckerRegexp(t *testing.T) {
 	}
 }
 
-// TestWholeFile tests Checker.WholeFiles will report any issues in files that have changes, even if
-// they are outside the diff.
-func TestWholeFiles(t *testing.T) {
+// Tests [Checker.WholeFiles] will report any issues in files that have changes,
+// even if they are outside the diff.
+func TestChecker_Check_WholeFiles(t *testing.T) {
 	tests := []struct {
 		name    string
 		line    string
@@ -209,7 +207,7 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 
 	for stage, test := range tests {
 		t.Run(stage, func(t *testing.T) {
-			prevwd, goVetOutput := setup(t, stage, test.subdir)
+			goVetOutput := setup(t, stage, test.subdir)
 
 			var out bytes.Buffer
 
@@ -217,6 +215,7 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 				RevisionFrom: test.revFrom,
 				RevisionTo:   test.revTo,
 			}
+
 			_, err := c.Check(context.Background(), bytes.NewBuffer(goVetOutput), &out)
 			if err != nil {
 				t.Errorf("%s: unexpected error: %v", stage, err)
@@ -227,7 +226,7 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 			scanner := bufio.NewScanner(&out)
 			for scanner.Scan() {
 				// Rewrite abs paths to for simpler matching
-				line := rewriteAbs(scanner.Text())
+				line := rewriteAbs(t, scanner.Text())
 				lines = append(lines, strings.TrimPrefix(line, "./"))
 			}
 
@@ -248,21 +247,11 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 			if count != len(test.exp) {
 				t.Errorf("%s: got %d, expected %d", stage, count, len(test.exp))
 			}
-
-			teardown(t, prevwd)
 		})
 	}
 }
 
-func rewriteAbs(line string) string {
-	cwd, err := os.Getwd()
-	if err != nil {
-		panic(err)
-	}
-	return strings.TrimPrefix(line, cwd+string(filepath.Separator))
-}
-
-func TestLinesChanged(t *testing.T) {
+func TestChecker_linesChanged(t *testing.T) {
 	diff := []byte(`--- a/file.go
 +++ b/file.go
 @@ -1,1 +1,1 @@
@@ -296,4 +285,15 @@ func TestLinesChanged(t *testing.T) {
 	if !reflect.DeepEqual(have, want) {
 		t.Errorf("unexpected pos:\nhave: %#v\nwant: %#v", have, want)
 	}
+}
+
+func rewriteAbs(t *testing.T, line string) string {
+	t.Helper()
+
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return strings.TrimPrefix(line, cwd+string(filepath.Separator))
 }
