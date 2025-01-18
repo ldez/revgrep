@@ -44,7 +44,11 @@ type Checker struct {
 }
 
 // Prepare extracts a patch and changed lines.
-// It should only be used with [Checker.IsNewIssue].
+//
+// WARNING: it should only be used before an explicit call to [Checker.IsNewIssue].
+//
+// WARNING: only [Checker.Patch], [Checker.RevisionFrom], [Checker.RevisionTo], [Checker.WholeFiles] options are used,
+// the other options ([Checker.Regexp], [Checker.AbsPath]) are only used by [Checker.Check].
 func (c *Checker) Prepare(ctx context.Context) error {
 	err := c.loadPatch(ctx)
 
@@ -54,7 +58,8 @@ func (c *Checker) Prepare(ctx context.Context) error {
 }
 
 // IsNewIssue checks whether issue found by linter is new: it was found in changed lines.
-// It requires to call [Checker.Prepare] before call this method to load the changes from patch.
+//
+// WARNING: it requires to call [Checker.Prepare] before call this method to load the changes from patch.
 func (c *Checker) IsNewIssue(i InputIssue) (hunkPos int, isNew bool) {
 	changes, ok := c.changes[filepath.ToSlash(i.FilePath())]
 	if !ok {
