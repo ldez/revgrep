@@ -88,11 +88,11 @@ func (i simpleInputIssue) Line() int {
 
 // Prepare extracts a patch and changed lines.
 func (c *Checker) Prepare(ctx context.Context) error {
-	returnErr := c.preparePatch(ctx)
+	err := c.preparePatch(ctx)
 
 	c.changes = c.linesChanged()
 
-	return returnErr
+	return err
 }
 
 // IsNewIssue checks whether issue found by linter is new: it was found in changed lines.
@@ -238,24 +238,29 @@ func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer)
 	return issues, returnErr
 }
 
-func (c *Checker) debugf(format string, s ...interface{}) {
-	if c.Debug != nil {
-		_, _ = fmt.Fprint(c.Debug, "DEBUG: ")
-		_, _ = fmt.Fprintf(c.Debug, format+"\n", s...)
+func (c *Checker) debugf(format string, s ...any) {
+	if c.Debug == nil {
+		return
 	}
+
+	_, _ = fmt.Fprint(c.Debug, "DEBUG: ")
+	_, _ = fmt.Fprintf(c.Debug, format+"\n", s...)
 }
 
+// preparePatch checks if patch is supplied, if not, retrieve from VCS.
 func (c *Checker) preparePatch(ctx context.Context) error {
-	// Check if patch is supplied, if not, retrieve from VCS
+	if c.Patch != nil {
+		return nil
+	}
+
+	var err error
+	c.Patch, c.NewFiles, err = GitPatch(ctx, c.RevisionFrom, c.RevisionTo)
+	if err != nil {
+		return fmt.Errorf("could not read git repo: %w", err)
+	}
+
 	if c.Patch == nil {
-		var err error
-		c.Patch, c.NewFiles, err = GitPatch(ctx, c.RevisionFrom, c.RevisionTo)
-		if err != nil {
-			return fmt.Errorf("could not read git repo: %w", err)
-		}
-		if c.Patch == nil {
-			return errors.New("no version control repository found")
-		}
+		return errors.New("no version control repository found")
 	}
 
 	return nil
@@ -321,11 +326,13 @@ func (c *Checker) linesChanged() map[string][]pos {
 			// cstart      ^
 			chdr := strings.Split(line, " ")
 			ahdr := strings.Split(chdr[2], ",")
+
 			// [1:] to remove leading plus
 			cstart, err := strconv.ParseUint(ahdr[0][1:], 10, 64)
 			if err != nil {
 				panic(err)
 			}
+
 			s.lineNo = int(cstart) - 1 // -1 as cstart is the next line number
 
 		case strings.HasPrefix(line, "-"):
