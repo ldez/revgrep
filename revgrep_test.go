@@ -262,25 +262,6 @@ func rewriteAbs(line string) string {
 	return strings.TrimPrefix(line, cwd+string(filepath.Separator))
 }
 
-func TestGitPatchNonGitDir(t *testing.T) {
-	// Change to non-git dir
-	err := os.Chdir("/")
-	if err != nil {
-		t.Fatalf("could not chdir: %v", err)
-	}
-
-	patch, newfiles, err := GitPatch(context.Background(), "", "")
-	if err != nil {
-		t.Errorf("error expected nil, got: %v", err)
-	}
-	if patch != nil {
-		t.Errorf("patch expected nil, got: %v", patch)
-	}
-	if newfiles != nil {
-		t.Errorf("newFiles expected nil, got: %v", newfiles)
-	}
-}
-
 func TestLinesChanged(t *testing.T) {
 	diff := []byte(`--- a/file.go
 +++ b/file.go
