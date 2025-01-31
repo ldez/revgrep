@@ -12,6 +12,12 @@ import (
 	"strings"
 )
 
+type patchOption struct {
+	revisionFrom string
+	revisionTo   string
+	mergeBase    string
+}
+
 // GitPatch returns a patch from a git repository.
 // If no git repository was found and no errors occurred, nil is returned,
 // else an error is returned revisionFrom and revisionTo defines the git diff parameters,
@@ -20,7 +26,7 @@ import (
 // If revisionFrom is set but revisionTo is not,
 // untracked files will be included, to exclude untracked files set revisionTo to HEAD~.
 // It's incorrect to specify revisionTo without a revisionFrom.
-func GitPatch(ctx context.Context, revisionFrom, revisionTo string) (io.Reader, []string, error) {
+func GitPatch(ctx context.Context, option patchOption) (io.Reader, []string, error) {
 	// check if git repo exists
 	if err := exec.CommandContext(ctx, "git", "status", "--porcelain").Run(); err != nil {
 		// don't return an error, we assume the error is not repo exists
@@ -45,11 +51,23 @@ func GitPatch(ctx context.Context, revisionFrom, revisionTo string) (io.Reader, 
 		newFiles = append(newFiles, string(file))
 	}
 
-	if revisionFrom != "" {
-		args := []string{revisionFrom}
+	if option.mergeBase != "" {
+		var base string
+		base, err = getMergeBase(ctx, option.mergeBase)
+		if err != nil {
+			return nil, nil, err
+		}
 
-		if revisionTo != "" {
-			args = append(args, revisionTo)
+		if base != "" {
+			option.revisionFrom = base
+		}
+	}
+
+	if option.revisionFrom != "" {
+		args := []string{option.revisionFrom}
+
+		if option.revisionTo != "" {
+			args = append(args, option.revisionTo)
 		}
 
 		args = append(args, "--")
@@ -59,7 +77,7 @@ func GitPatch(ctx context.Context, revisionFrom, revisionTo string) (io.Reader, 
 			return nil, nil, errDiff
 		}
 
-		if revisionTo == "" {
+		if option.revisionTo == "" {
 			return patch, newFiles, nil
 		}
 
@@ -158,4 +176,20 @@ func isSupportedByGit(ctx context.Context, major, minor, patch int) bool {
 	}
 
 	return currentMajor*1_000_000_000+currentMinor*1_000_000+currentPatch*1_000 >= major*1_000_000_000+minor*1_000_000+patch*1_000
+}
+
+func getMergeBase(ctx context.Context, base string) (string, error) {
+	cmd := exec.CommandContext(ctx, "git", "merge-base", base, "HEAD")
+
+	patch := new(bytes.Buffer)
+	errBuff := new(bytes.Buffer)
+
+	cmd.Stdout = patch
+	cmd.Stderr = errBuff
+
+	if err := cmd.Run(); err != nil {
+		return "", fmt.Errorf("error executing %q: %w: %w", strings.Join(cmd.Args, " "), err, readAsError(errBuff))
+	}
+
+	return strings.TrimSpace(patch.String()), nil
 }

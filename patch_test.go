@@ -20,7 +20,7 @@ func TestGitPatch_nonGitDir(t *testing.T) {
 
 	t.Cleanup(func() { _ = os.Chdir(wd) })
 
-	patch, newFiles, err := GitPatch(context.Background(), "", "")
+	patch, newFiles, err := GitPatch(context.Background(), patchOption{})
 	if err != nil {
 		t.Errorf("error expected nil, got: %v", err)
 	}

@@ -29,10 +29,12 @@ type Checker struct {
 	Debug io.Writer
 	// RevisionFrom check revision starting at, leave blank for auto-detection ignored if patch is set.
 	RevisionFrom string
-	// WholeFiles indicates that the user wishes to see all issues that comes up anywhere in any file that has been changed in this revision or patch.
-	WholeFiles bool
 	// RevisionTo checks revision finishing at, leave blank for auto-detection ignored if patch is set.
 	RevisionTo string
+	// MergeBase checks revision starting at the best common ancestor, leave blank for auto-detection ignored if patch is set.
+	MergeBase string
+	// WholeFiles indicates that the user wishes to see all issues that comes up anywhere in any file that has been changed in this revision or patch.
+	WholeFiles bool
 	// Regexp to match path, line number, optional column number, and message.
 	Regexp string
 	// AbsPath is used to make an absolute path of an issue's filename to be relative in order to match patch file.
@@ -228,8 +230,14 @@ func (c *Checker) loadPatch(ctx context.Context) error {
 		return nil
 	}
 
+	option := patchOption{
+		revisionFrom: c.RevisionFrom,
+		revisionTo:   c.RevisionTo,
+		mergeBase:    c.MergeBase,
+	}
+
 	var err error
-	c.Patch, c.NewFiles, err = GitPatch(ctx, c.RevisionFrom, c.RevisionTo)
+	c.Patch, c.NewFiles, err = GitPatch(ctx, option)
 	if err != nil {
 		return fmt.Errorf("could not read git repo: %w", err)
 	}
