@@ -36,6 +36,7 @@ func setup(t *testing.T, stage, subdir string) []byte {
 	}
 
 	gitDir := filepath.Join(testDataDir, "git")
+
 	t.Cleanup(func() {
 		_ = os.RemoveAll(gitDir)
 	})
@@ -166,9 +167,11 @@ func TestChecker_Check_WholeFiles(t *testing.T) {
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
+
 			if test.matches && len(issues) != 1 {
 				t.Fatalf("expected one issue to be returned, but got %#v", issues)
 			}
+
 			if !test.matches && len(issues) != 0 {
 				t.Fatalf("expected no issues to be returned, but got %#v", issues)
 			}
@@ -237,6 +240,7 @@ func TestChecker_Check_changesWriter(t *testing.T) {
 			var count int
 			for i, line := range lines {
 				count++
+
 				if i > len(test.exp)-1 {
 					t.Errorf("%s: unexpected line: %q", stage, line)
 				} else if !strings.HasPrefix(line, filepath.FromSlash(test.exp[i])) {

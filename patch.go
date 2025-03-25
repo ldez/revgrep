@@ -40,6 +40,7 @@ func GitPatch(ctx context.Context, option patchOption) (io.Reader, []string, err
 	}
 
 	var newFiles []string
+
 	for _, file := range bytes.Split(ls, []byte{'\n'}) {
 		if len(file) == 0 || bytes.HasSuffix(file, []byte{'/'}) {
 			// ls-files was sometimes showing directories when they were ignored
@@ -53,6 +54,7 @@ func GitPatch(ctx context.Context, option patchOption) (io.Reader, []string, err
 
 	if option.mergeBase != "" {
 		var base string
+
 		base, err = getMergeBase(ctx, option.mergeBase)
 		if err != nil {
 			return nil, nil, err

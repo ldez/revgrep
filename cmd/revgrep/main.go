@@ -43,6 +43,7 @@ func main() {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
+
 	if len(issues) > 0 {
 		os.Exit(1)
 	}

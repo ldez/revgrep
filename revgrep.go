@@ -178,8 +178,8 @@ func (c *Checker) Check(ctx context.Context, reader io.Reader, writer io.Writer)
 		if len(line[3]) > 0 {
 			cno, err = strconv.ParseUint(string(line[3]), 10, 64)
 			if err != nil {
-				c.debugf("cannot parse column number: %q", scanner.Text())
 				// Ignore this error and continue
+				c.debugf("cannot parse column number: %q", scanner.Text())
 			}
 		}
 
@@ -237,6 +237,7 @@ func (c *Checker) loadPatch(ctx context.Context) error {
 	}
 
 	var err error
+
 	c.Patch, c.NewFiles, err = GitPatch(ctx, option)
 	if err != nil {
 		return fmt.Errorf("could not read git repo: %w", err)
@@ -272,7 +273,9 @@ func (c *Checker) linesChanged() map[string][]pos {
 	var s state
 
 	scanner := bufio.NewReader(c.Patch)
+
 	var scanErr error
+
 	for {
 		lineB, isPrefix, err := scanner.ReadLine()
 		if isPrefix {
