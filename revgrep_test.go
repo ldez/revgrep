@@ -26,7 +26,7 @@ func setup(t *testing.T, stage, subdir string) []byte {
 	testDataDir := filepath.Join(wd, "testdata")
 
 	// Execute make
-	cmd := exec.Command("bash", "./make.sh", stage)
+	cmd := exec.CommandContext(t.Context(), "bash", "./make.sh", stage)
 	cmd.Dir = testDataDir
 
 	gitOutput, err := cmd.CombinedOutput()
@@ -41,7 +41,7 @@ func setup(t *testing.T, stage, subdir string) []byte {
 		_ = os.RemoveAll(gitDir)
 	})
 
-	cmd = exec.Command("go", "vet", "./...")
+	cmd = exec.CommandContext(t.Context(), "go", "vet", "./...")
 	cmd.Dir = gitDir
 
 	goVetOutput, err := cmd.CombinedOutput()
@@ -51,10 +51,7 @@ func setup(t *testing.T, stage, subdir string) []byte {
 	}
 
 	// chdir so the vcs exec commands read the correct testdata
-	err = os.Chdir(filepath.Join(gitDir, subdir))
-	if err != nil {
-		t.Fatalf("could not chdir: %v", err)
-	}
+	t.Chdir(filepath.Join(gitDir, subdir))
 
 	if stage == "11-abs-path" {
 		goVetOutput = regexp.MustCompile(`(.+\.go)`).
@@ -65,13 +62,6 @@ func setup(t *testing.T, stage, subdir string) []byte {
 	goVetOutput = bytes.ReplaceAll(goVetOutput, []byte("."+string(filepath.Separator)), []byte(""))
 
 	t.Logf("%s: go vet clean: %s", stage, string(goVetOutput))
-
-	t.Cleanup(func() {
-		err = os.Chdir(wd)
-		if err != nil {
-			t.Fatalf("could not chdir: %v", err)
-		}
-	})
 
 	return goVetOutput
 }

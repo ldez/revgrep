@@ -41,7 +41,7 @@ func GitPatch(ctx context.Context, option patchOption) (io.Reader, []string, err
 
 	var newFiles []string
 
-	for _, file := range bytes.Split(ls, []byte{'\n'}) {
+	for file := range bytes.SplitSeq(ls, []byte{'\n'}) {
 		if len(file) == 0 || bytes.HasSuffix(file, []byte{'/'}) {
 			// ls-files was sometimes showing directories when they were ignored
 			// I couldn't create a test case for this as I couldn't reproduce correctly for the moment,

@@ -26,6 +26,7 @@ func main() {
 
 	debug := flag.Bool("d", false, "Show debug output")
 	regexp := flag.String("regexp", "", "Regexp to match path, line number, optional column number, and message")
+
 	flag.Parse()
 
 	checker := revgrep.Checker{
@@ -41,6 +42,7 @@ func main() {
 	issues, err := checker.Check(context.Background(), os.Stdin, os.Stderr)
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
+
 		os.Exit(1)
 	}
 

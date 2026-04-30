@@ -24,6 +24,7 @@ linters:
     - nilerr
     - nlreturn
     - nonamedreturns
+    - noinlineerr
     - paralleltest
     - prealloc
     - rowserrcheck # not relevant (SQL)
@@ -31,6 +32,7 @@ linters:
     - testpackage
     - tparallel
     - varnamelen
+    - wsl # Deprecated
 
   settings:
     funlen:
@@ -49,6 +51,7 @@ linters:
     gosec:
       excludes:
         - G115 # integer overflow conversion
+        - G204 # subprocess launched with variable
     govet:
       disable:
         - fieldalignment
